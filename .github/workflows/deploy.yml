@@ -32,8 +32,8 @@ jobs:
 
       - name: Write raw SSH key to file
         run: |
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > private_key.pem
-          chmod 400 private_key.pem
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > lavarel-instance-key.pem
+          chmod 400 lavarel-instance-key.pem
 
       - name: Copy files to EC2
         uses: appleboy/scp-action@v0.1.2
