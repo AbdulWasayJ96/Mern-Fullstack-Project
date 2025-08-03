@@ -30,13 +30,19 @@ jobs:
         run: npm run build
         working-directory: ./frontend
 
+      # ✅ Test if the SSH key is being loaded properly (safe)
+      - name: Check SSH key line count (for debugging only)
+        run: echo "${{ secrets.SSH_PRIVATE_KEY }}" | wc -l
+
       - name: Test SSH connection
         uses: appleboy/ssh-action@v0.1.2
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
           script: echo "✅ GitHub Actions connected to EC2 successfully!"
+          debug: true
 
       - name: Copy project files to EC2
         uses: appleboy/scp-action@v0.1.2
@@ -44,6 +50,7 @@ jobs:
           host: ${{ secrets.SERVER_IP }}
           username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
           source: "."
           target: "/home/ubuntu/mern"
           debug: true
@@ -54,8 +61,10 @@ jobs:
           host: ${{ secrets.SERVER_IP }}
           username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
           script: |
-            cd /home/ubuntu/mern-app/backend
+            cd /home/ubuntu/mern/backend
             npm install
             pm2 delete mern-backend || true
             pm2 start index.js --name mern-backend
+          debug: true
