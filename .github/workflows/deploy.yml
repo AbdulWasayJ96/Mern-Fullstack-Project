@@ -59,4 +59,3 @@ jobs:
             npm install
             pm2 delete mern-backend || true
             pm2 start index.js --name mern-backend
-s
