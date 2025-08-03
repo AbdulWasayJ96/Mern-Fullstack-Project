@@ -1,70 +1,49 @@
-name: Deploy MERN to EC2
+name: Deploy MERN App to EC2
 
 on:
   push:
     branches:
-      - main
+      - main  # or your deployment branch
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+    - name: Checkout repo
+      uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@v0.1.2
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: 22
+        script: |
+          # If app folder doesn't exist, clone it. Else, pull latest
+          if [ ! -d "Mern-Fullstack-Project" ]; then
+            git clone https://github.com/${{ github.repository }}.git
+          else
+            cd Mern-Fullstack-Project
+            git pull origin main
+          fi
 
-      - name: Install backend dependencies
-        run: npm install
-        working-directory: ./backend
+          cd Mern-Fullstack-Project
 
-      - name: Install frontend dependencies
-        run: npm install
-        working-directory: ./frontend
+          # Install backend
+          cd backend
+          npm install
 
-      - name: Build frontend
-        run: npm run build
-        working-directory: ./frontend
+          # Start backend (adjust if you use a framework like Express or Next.js)
+          pm2 delete backend || true
+          pm2 start index.js --name backend
 
-      # ✅ Test if the SSH key is being loaded properly (safe)
-      - name: Check SSH key line count (for debugging only)
-        run: echo "${{ secrets.SSH_PRIVATE_KEY }}" | wc -l
+          # Install frontend
+          cd ../frontend
+          npm install
+          npm run build
 
-      - name: Test SSH connection
-        uses: appleboy/ssh-action@v0.1.2
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ubuntu
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          script: echo "✅ GitHub Actions connected to EC2 successfully!"
-          debug: true
-
-      - name: Copy project files to EC2
-        uses: appleboy/scp-action@v0.1.2
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ubuntu
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          source: "."
-          target: "/home/ubuntu/mern"
-          debug: true
-
-      - name: Restart backend with PM2
-        uses: appleboy/ssh-action@v0.1.2
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ubuntu
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          script: |
-            cd /home/ubuntu/mern/backend
-            npm install
-            pm2 delete mern-backend || true
-            pm2 start index.js --name mern-backend
-          debug: true
+          # Serve frontend (you can use serve or nginx or whatever you prefer)
+          pm2 delete frontend || true
+          pm2 serve build 3000 --name frontend --spa
