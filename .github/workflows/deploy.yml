@@ -3,7 +3,7 @@ name: Deploy MERN App to EC2
 on:
   push:
     branches:
-      - main  # or your deployment branch
+      - main
 
 jobs:
   deploy:
@@ -19,31 +19,29 @@ jobs:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USERNAME }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
-        port: 22
         script: |
-          # If app folder doesn't exist, clone it. Else, pull latest
+          # Go to home directory
+          cd ~
+
+          # Clone the repo if not already cloned
           if [ ! -d "Mern-Fullstack-Project" ]; then
-            git clone https://github.com/${{ github.repository }}.git
+            git clone https://github.com/${{ github.repository }}.git Mern-Fullstack-Project
           else
             cd Mern-Fullstack-Project
             git pull origin main
           fi
 
-          cd Mern-Fullstack-Project
+          cd ~/Mern-Fullstack-Project
 
-          # Install backend
+          # Backend
           cd backend
           npm install
-
-          # Start backend (adjust if you use a framework like Express or Next.js)
           pm2 delete backend || true
           pm2 start index.js --name backend
 
-          # Install frontend
+          # Frontend
           cd ../frontend
           npm install
           npm run build
-
-          # Serve frontend (you can use serve or nginx or whatever you prefer)
           pm2 delete frontend || true
-          pm2 serve build 3000 --name frontend --spa
+          pm2 serve build 3000 --spa --name frontend
