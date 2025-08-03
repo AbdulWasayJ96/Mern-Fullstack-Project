@@ -32,24 +32,28 @@ jobs:
 
       - name: Write raw SSH key to file
         run: |
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > lavarel-instance-key.pem
-          chmod 400 lavarel-instance-key.pem
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > private_key.pem
+          chmod 400 private_key.pem
 
-      - name: Copy files to EC2
+      - name: Verify SSH key is created
+        run: ls -la private_key.pem
+
+      - name: Copy project files to EC2
         uses: appleboy/scp-action@v0.1.2
         with:
           host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          key_path: lavarel-instance-key.pem
+          username: ubuntu
+          key_path: private_key.pem
           source: "."
           target: "/home/ubuntu/mern-app"
+          debug: true
 
-      - name: SSH and restart backend with PM2
+      - name: Restart backend on EC2 with PM2
         uses: appleboy/ssh-action@v0.1.2
         with:
           host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          key_path: lavarel-instance-key.pem
+          username: ubuntu
+          key_path: private_key.pem
           script: |
             cd /home/ubuntu/mern-app/backend
             npm install
