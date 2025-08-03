@@ -30,12 +30,20 @@ jobs:
         run: npm run build
         working-directory: ./frontend
 
+      - name: Write dedicated SSH key to file
+        run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > private_key.pem
+          chmod 400 private_key.pem
+
+      - name: Verify key exists
+        run: ls -la private_key.pem
+
       - name: Test SSH connection (optional)
         uses: appleboy/ssh-action@v0.1.2
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ubuntu
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          key_path: private_key.pem
           script: echo "✅ GitHub Actions connected to EC2 successfully!"
 
       - name: Copy project files to EC2
@@ -43,7 +51,7 @@ jobs:
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ubuntu
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          key_path: private_key.pem
           source: "."
           target: "/home/ubuntu/mern-app"
           debug: true
@@ -53,7 +61,7 @@ jobs:
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ubuntu
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          key_path: private_key.pem
           script: |
             cd /home/ubuntu/mern-app/backend
             npm install
