@@ -2,8 +2,7 @@ name: Deploy MERN to EC2
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   deploy:
@@ -20,15 +19,15 @@ jobs:
 
       - name: Install backend dependencies
         run: npm install
-        working-directory: ./server
+        working-directory: ./backend
 
       - name: Install frontend dependencies
         run: npm install
-        working-directory: ./client
+        working-directory: ./frontend
 
       - name: Build frontend
         run: npm run build
-        working-directory: ./client
+        working-directory: ./frontend
 
       - name: Copy files to EC2
         uses: appleboy/scp-action@v0.1.2
@@ -46,7 +45,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /home/ubuntu/mern-app/server
+            cd /home/ubuntu/mern-app/backend
             npm install
-            pm2 delete all || true
+            pm2 delete mern-backend || true
             pm2 start index.js --name mern-backend
