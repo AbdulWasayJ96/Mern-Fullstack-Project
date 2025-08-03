@@ -53,7 +53,7 @@ jobs:
           username: ubuntu
           key_path: private_key.pem
           source: "."
-          target: "/home/ubuntu/mern-app"
+          target: "/home/ubuntu/mern"
           debug: true
 
       - name: Restart backend with PM2
