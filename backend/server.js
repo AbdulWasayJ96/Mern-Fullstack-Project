@@ -1,3 +1,5 @@
+console.log("DEBUG: Current MONGO_URI starts with:", process.env.MONGO_URI ? process.env.MONGO_URI.substring(0, 20) : "UNDEFINED");
+
 require('dotenv').config()
 
 const express = require('express')
