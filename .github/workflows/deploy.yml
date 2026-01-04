@@ -88,6 +88,9 @@ jobs:
           task-definition: backend-td.json
           container-name: ${{ needs.branch-check.outputs.CONT_BACKEND }}
           image: ${{ needs.build-and-push.outputs.backend_img }}
+          environment-variables: |
+            MONGO_URI=${{ secrets.MONGO_URI }}
+            PORT=5000
 
       - name: Deploy Backend to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
