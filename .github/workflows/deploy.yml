@@ -50,16 +50,19 @@ jobs:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           TAG: ${{ github.sha }}
         run: |
-          # Build & Push Backend
-          docker build -t $REGISTRY/${{ needs.branch-check.outputs.REPO_BACKEND }}:$TAG ./backend
+          # Build & Push Backend with TWO tags
+          docker build -t $REGISTRY/${{ needs.branch-check.outputs.REPO_BACKEND }}:$TAG \
+                       -t $REGISTRY/${{ needs.branch-check.outputs.REPO_BACKEND }}:latest ./backend
           docker push $REGISTRY/${{ needs.branch-check.outputs.REPO_BACKEND }}:$TAG
+          docker push $REGISTRY/${{ needs.branch-check.outputs.REPO_BACKEND }}:latest
           echo "backend_img=$REGISTRY/${{ needs.branch-check.outputs.REPO_BACKEND }}:$TAG" >> $GITHUB_OUTPUT
           
-          # Build & Push Frontend
-          docker build -t $REGISTRY/${{ needs.branch-check.outputs.REPO_FRONTEND }}:$TAG ./frontend
+          # Build & Push Frontend with TWO tags
+          docker build -t $REGISTRY/${{ needs.branch-check.outputs.REPO_FRONTEND }}:$TAG \
+                       -t $REGISTRY/${{ needs.branch-check.outputs.REPO_FRONTEND }}:latest ./frontend
           docker push $REGISTRY/${{ needs.branch-check.outputs.REPO_FRONTEND }}:$TAG
+          docker push $REGISTRY/${{ needs.branch-check.outputs.REPO_FRONTEND }}:latest
           echo "frontend_img=$REGISTRY/${{ needs.branch-check.outputs.REPO_FRONTEND }}:$TAG" >> $GITHUB_OUTPUT
-
   # JOB 3: Deploy Backend Service
   deploy-backend:
     runs-on: ubuntu-latest
