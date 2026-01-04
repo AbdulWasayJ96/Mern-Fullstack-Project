@@ -20,8 +20,8 @@ jobs:
       TD_BACKEND_FAMILY: mern-app-td
       TD_FRONTEND_FAMILY: mern-app-frontend-td
       # Ensure these names match the 'name' field of the container in your AWS Task Def
-      CONT_BACKEND: backend-container 
-      CONT_FRONTEND: frontend-container
+      CONT_BACKEND: backend 
+      CONT_FRONTEND: frontend
     steps:
       - run: echo "Deploying MERN Stack to me-central-1"
 
