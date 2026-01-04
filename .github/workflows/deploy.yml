@@ -19,9 +19,9 @@ jobs:
       SVC_FRONTEND: mern-app-td-frontend
       TD_BACKEND_FAMILY: mern-app-td
       TD_FRONTEND_FAMILY: mern-app-frontend-td
-      # Ensure these match the 'name' field inside your AWS Task Definition containers
-      CONT_BACKEND: backend
-      CONT_FRONTEND: frontend
+      # Ensure these names match the 'name' field of the container in your AWS Task Def
+      CONT_BACKEND: backend-container 
+      CONT_FRONTEND: frontend-container
     steps:
       - run: echo "Deploying MERN Stack to me-central-1"
 
@@ -40,7 +40,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: 'me-central-1'
+          aws-region: ${{ env.AWS_REGION }}
 
       - id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
@@ -50,7 +50,7 @@ jobs:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           TAG: ${{ github.sha }}
         run: |
-         # Build & Push Backend
+          # Build & Push Backend
           docker build -t $REGISTRY/${{ needs.branch-check.outputs.REPO_BACKEND }}:$TAG ./backend
           docker push $REGISTRY/${{ needs.branch-check.outputs.REPO_BACKEND }}:$TAG
           echo "backend_img=$REGISTRY/${{ needs.branch-check.outputs.REPO_BACKEND }}:$TAG" >> $GITHUB_OUTPUT
@@ -72,9 +72,11 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Download Backend Task Def
+      - name: Download and Clean Backend Task Def
         run: |
-          aws ecs describe-task-definition --task-definition ${{ needs.branch-check.outputs.TD_BACKEND_FAMILY }} --query taskDefinition > backend-td.json
+          aws ecs describe-task-definition --task-definition ${{ needs.branch-check.outputs.TD_BACKEND_FAMILY }} --query taskDefinition > raw-backend-td.json
+          # Removed problematic 'enableFaultInjection' and metadata keys using jq
+          cat raw-backend-td.json | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .enableFaultInjection)' > backend-td.json
 
       - name: Render Backend Image
         id: render-backend
@@ -92,7 +94,7 @@ jobs:
           cluster: ${{ needs.branch-check.outputs.CLUSTER }}
           wait-for-service-stability: true
 
-  # JOB 4: Deploy Frontend Service (Starts after Backend is stable)
+  # JOB 4: Deploy Frontend Service
   deploy-frontend:
     runs-on: ubuntu-latest
     needs: [branch-check, build-and-push, deploy-backend]
@@ -104,9 +106,11 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Download Frontend Task Def
+      - name: Download and Clean Frontend Task Def
         run: |
-          aws ecs describe-task-definition --task-definition ${{ needs.branch-check.outputs.TD_FRONTEND_FAMILY }} --query taskDefinition > frontend-td.json
+          aws ecs describe-task-definition --task-definition ${{ needs.branch-check.outputs.TD_FRONTEND_FAMILY }} --query taskDefinition > raw-frontend-td.json
+          # Removed problematic 'enableFaultInjection' and metadata keys using jq
+          cat raw-frontend-td.json | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .enableFaultInjection)' > frontend-td.json
 
       - name: Render Frontend Image
         id: render-frontend
