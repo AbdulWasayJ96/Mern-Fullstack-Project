@@ -15,9 +15,9 @@ jobs:
       REPO_BACKEND: wasay-mern
       REPO_FRONTEND: wasay-mern-frontend
       CLUSTER: wasay-mern-app
-      SVC_BACKEND: mern-app-td-service-backend
-      SVC_FRONTEND: mern-app-td-frontend
-      TD_BACKEND_FAMILY: mern-app-td
+      SVC_BACKEND: mern-app-backend-svc
+      SVC_FRONTEND: mern-app-frontend-svc
+      TD_BACKEND_FAMILY: mern-app-backend-td
       TD_FRONTEND_FAMILY: mern-app-frontend-td
       # Ensure these names match the 'name' field of the container in your AWS Task Def
       CONT_BACKEND: backend 
