@@ -1,47 +1,135 @@
-name: Deploy MERN App to EC2
+name: MERN Separate Deploy
 
 on:
   push:
-    branches:
-      - main
+    branches: [ master ]
+
+env:
+  AWS_REGION: 'me-central-1'
 
 jobs:
-  deploy:
+  # JOB 1: Environment Configuration
+  branch-check:
     runs-on: ubuntu-latest
-
+    outputs:
+      REPO_BACKEND: wasay-mern
+      REPO_FRONTEND: wasay-mern-frontend
+      CLUSTER: wasay-mern-app
+      SVC_BACKEND: mern-app-backend-svc
+      SVC_FRONTEND: mern-app-frontend-svc
+      TD_BACKEND_FAMILY: mern-app-backend-td
+      TD_FRONTEND_FAMILY: mern-app-frontend-td
+      # Ensure these names match the 'name' field of the container in your AWS Task Def
+      CONT_BACKEND: backend 
+      CONT_FRONTEND: frontend
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
+      - run: echo "Deploying MERN Stack to me-central-1"
 
-    - name: Deploy via SSH
-      uses: appleboy/ssh-action@v0.1.2
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ${{ secrets.EC2_USERNAME }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
-          # Go to home directory
-          cd ~
+  # JOB 2: Build and Push both images
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: branch-check
+    outputs:
+      backend_img: ${{ steps.build.outputs.backend_img }}
+      frontend_img: ${{ steps.build.outputs.frontend_img }}
+    steps:
+      - uses: actions/checkout@v4
 
-          # Clone the repo if not already cloned
-          if [ ! -d "Mern-Fullstack-Project" ]; then
-            git clone https://github.com/${{ github.repository }}.git Mern-Fullstack-Project
-          else
-            cd Mern-Fullstack-Project
-            git pull origin main
-          fi
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-          cd ~/Mern-Fullstack-Project
+      - id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-          # Backend
-          cd backend
-          npm install
-          pm2 delete backend || true
-          pm2 start index.js --name backend
+      - id: build
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          TAG: ${{ github.sha }}
+        run: |
+          # Build & Push Backend with TWO tags
+          docker build -t $REGISTRY/${{ needs.branch-check.outputs.REPO_BACKEND }}:$TAG \
+                       -t $REGISTRY/${{ needs.branch-check.outputs.REPO_BACKEND }}:latest ./backend
+          docker push $REGISTRY/${{ needs.branch-check.outputs.REPO_BACKEND }}:$TAG
+          docker push $REGISTRY/${{ needs.branch-check.outputs.REPO_BACKEND }}:latest
+          echo "backend_img=$REGISTRY/${{ needs.branch-check.outputs.REPO_BACKEND }}:$TAG" >> $GITHUB_OUTPUT
+          
+          # Build & Push Frontend with TWO tags
+          docker build -t $REGISTRY/${{ needs.branch-check.outputs.REPO_FRONTEND }}:$TAG \
+                       -t $REGISTRY/${{ needs.branch-check.outputs.REPO_FRONTEND }}:latest ./frontend
+          docker push $REGISTRY/${{ needs.branch-check.outputs.REPO_FRONTEND }}:$TAG
+          docker push $REGISTRY/${{ needs.branch-check.outputs.REPO_FRONTEND }}:latest
+          echo "frontend_img=$REGISTRY/${{ needs.branch-check.outputs.REPO_FRONTEND }}:$TAG" >> $GITHUB_OUTPUT
+  # JOB 3: Deploy Backend Service
+  deploy-backend:
+    runs-on: ubuntu-latest
+    needs: [branch-check, build-and-push]
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-          # Frontend
-          cd ../frontend
-          npm install
-          npm run build
-          pm2 delete frontend || true
-          pm2 serve build 3000 --spa --name frontend
+      - name: Download and Clean Backend Task Def
+        run: |
+          aws ecs describe-task-definition --task-definition ${{ needs.branch-check.outputs.TD_BACKEND_FAMILY }} --query taskDefinition > raw-backend-td.json
+          # Removed problematic 'enableFaultInjection' and metadata keys using jq
+          cat raw-backend-td.json | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .enableFaultInjection)' > backend-td.json
+
+      - name: Render Backend Image
+        id: render-backend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: backend-td.json
+          container-name: ${{ needs.branch-check.outputs.CONT_BACKEND }}
+          image: ${{ needs.build-and-push.outputs.backend_img }}
+          environment-variables: |
+            MONGO_URI=${{ secrets.MONGO_URI }}
+            PORT=5000
+
+      - name: Deploy Backend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-backend.outputs.task-definition }}
+          service: ${{ needs.branch-check.outputs.SVC_BACKEND }}
+          cluster: ${{ needs.branch-check.outputs.CLUSTER }}
+          wait-for-service-stability: true
+
+  # JOB 4: Deploy Frontend Service
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    needs: [branch-check, build-and-push, deploy-backend]
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download and Clean Frontend Task Def
+        run: |
+          aws ecs describe-task-definition --task-definition ${{ needs.branch-check.outputs.TD_FRONTEND_FAMILY }} --query taskDefinition > raw-frontend-td.json
+          # Removed problematic 'enableFaultInjection' and metadata keys using jq
+          cat raw-frontend-td.json | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .enableFaultInjection)' > frontend-td.json
+
+      - name: Render Frontend Image
+        id: render-frontend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: frontend-td.json
+          container-name: ${{ needs.branch-check.outputs.CONT_FRONTEND }}
+          image: ${{ needs.build-and-push.outputs.frontend_img }}
+
+      - name: Deploy Frontend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-frontend.outputs.task-definition }}
+          service: ${{ needs.branch-check.outputs.SVC_FRONTEND }}
+          cluster: ${{ needs.branch-check.outputs.CLUSTER }}
+          wait-for-service-stability: true
