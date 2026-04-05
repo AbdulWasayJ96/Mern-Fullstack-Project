@@ -2,7 +2,7 @@ name: MERN Separate Deploy
 
 on:
   push:
-    branches: [ ecs-deploy ]
+#    branches: [ ecs-deploy ]
 
 env:
   AWS_REGION: 'me-central-1'
